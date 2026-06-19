@@ -5,9 +5,10 @@ Linux system monitor made in C. Calcutates data with files from /proc, calculati
 
 ## Building
 No dependencies besides C standard library.
-    ```
-    git clone https://github.com/ParsleyJoe/SysMonitor.git
-    cd SysMonitor
-    make
-    ./monitor
-    ```
+
+```
+git clone https://github.com/ParsleyJoe/SysMonitor.git
+cd SysMonitor
+make
+./monitor
+```
