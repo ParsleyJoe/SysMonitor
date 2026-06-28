@@ -16,6 +16,7 @@ typedef struct stat_data{
 typedef struct proc_data {
 	unsigned long long int proc_total;
 	long pid;
+	int seen;
 } proc_data;
 
 int find_process(proc_data *array, size_t count, long pid);
@@ -24,6 +25,15 @@ void sigint_func(int sig)
 {
 	(void)sig; // silences warning
 	running = 0;
+}
+
+void remove_process(proc_data *array, size_t *count, size_t index)
+{
+	for (size_t i = index; i + 1 < *count; i++)
+	{
+		array[i] = array[i + 1];
+	}
+	(*count)--;
 }
 
 double get_cpu_usage(stat_data *st_data)
@@ -143,7 +153,12 @@ unsigned long long int get_time_for_proc(long pid)
 	FILE* st_file = fopen(str, "r");
 	if (st_file == NULL)
 	{
-		printf("ERROR: Failed to open file %s\n", str);
+		if (errno == ENOENT || errno == ESRCH)
+		{
+			// Process exited between scan and open.
+			return 0;
+		}
+    		perror(str);
 		return 0;
 	}
 
@@ -203,32 +218,48 @@ void update_proc_array(DIR* dir, proc_data** pid_array, size_t* pid_array_size, 
 				continue;
 			}
 
-			int index = find_process(*pid_array, *pid_count, pid);
-			if (index == -1)
+			int ind = find_process(*pid_array, *pid_count, pid);
+			if (ind != -1)
 			{
-				if (*pid_count == *pid_array_size)
-				{
-					size_t new_size = (*pid_array_size == 0) ? 16 : *pid_array_size * 2;
-					proc_data* new_arr = realloc(*pid_array, new_size * sizeof(*new_arr));
-					if (new_arr == NULL)
-					{
-						fprintf(stderr, "ERROR::PID_ARRAY_RESIZE_MALLOC_FAILED");
-						return; // cant quite do anything from here
-					}
-					*pid_array = new_arr;
-					(*pid_array_size) = new_size;
-					printf("RESIZED!!!!");
-				}
-
-				(*pid_array)[*pid_count].pid = pid;
-				(*pid_array)[*pid_count].proc_total = get_time_for_proc(pid);
-				(*pid_count)++;
+				// exists
+				(*pid_array)[ind].seen = 1;
 			}
 			else
 			{
-				// existing proc
+				// doesnt exist
+				(*pid_array)[*pid_count].pid = pid;
+				(*pid_array)[*pid_count].seen = 1;
+				(*pid_array)[*pid_count].proc_total = get_time_for_proc(pid);
+				(*pid_count)++;
+			}
+
+			if (*pid_count >= *pid_array_size)
+			{
+				size_t tmp_size = (*pid_array_size == 0) ? 16 : *pid_array_size * 2;
+				proc_data* tmp = realloc(*pid_array, tmp_size * sizeof(*tmp));
+				if (tmp == NULL)
+				{
+					fprintf(stderr, "ERROR::PID_ARRAY_RESIZE_MALLOC_FAILED");
+					return; // cant quite do anything from here
+				}
+				*pid_array = tmp;
+				*pid_array_size = tmp_size;
+				printf("RESIZED!!!!");
 			}
 		}
+	}
+
+	// Set all seen vars
+	for (int i = 0; i < *pid_count; i++)
+	{
+		// already not seen
+		if ((*pid_array)[i].seen == 0)
+		{
+			printf("Removed Process: %ld", (*pid_array)[i].pid); 
+			remove_process(*pid_array, pid_count, i);
+			continue;
+		}
+		(*pid_array)[i].seen = 0;
 	}
 }
 
