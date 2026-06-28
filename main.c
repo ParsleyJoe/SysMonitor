@@ -4,6 +4,7 @@
 #include <dirent.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
 
 // global.? idk
 volatile sig_atomic_t running = 1; 
@@ -11,6 +12,19 @@ volatile sig_atomic_t running = 1;
 typedef struct stat_data{
 	unsigned long long int cpu_total_d;
 } stat_data;
+
+typedef struct proc_data {
+	unsigned long long int proc_total;
+	long pid;
+} proc_data;
+
+int find_process(proc_data *array, size_t count, long pid);
+
+void sigint_func(int sig)
+{
+	(void)sig; // silences warning
+	running = 0;
+}
 
 double get_cpu_usage(stat_data *st_data)
 {
@@ -36,7 +50,7 @@ double get_cpu_usage(stat_data *st_data)
 	/*
 	 * Calculating formula from
 	 * https://stackoverflow.com/questions/23367857/accurate-calculation-of-cpu-usage-given-in-percentage-in-linux
-	 * and the htop code
+	 * And as in the the htop source code
 	 */
 	unsigned long long int prevIdle = idle + iowait;
 	unsigned long long int prevNonIdle = user + nice + system + irq + softirq + steal;
@@ -74,6 +88,7 @@ double get_cpu_usage(stat_data *st_data)
 	if (totald == 0) { printf("Division BY ZERO");}
 	else usage = (double)(totald - idled) / totald * 100.0;
 
+	fclose(f);
 	return usage;
 }
 
@@ -98,6 +113,7 @@ double get_mem_usage()
 
 	unsigned long long int mem_used = mem_total - mem_avail;
 	usage = ((double)mem_used / mem_total) * 100.0;
+	fclose(f);
 	return usage;
 }
 
@@ -114,34 +130,126 @@ double get_swap_usage()
 	unsigned long long int size = 0;
 	sscanf(s, "%*s %*s %llu %llu",  &size, &used);
 	usage = (double)used / size * 100.0;
+
+	fclose(f);
 	return usage;
 }
 
-double get_usage_for_proccess(stat_data *st_data, long pid)
+unsigned long long int get_time_for_proc(long pid)
 {
-	double usage;
-	struct dirent* dirnt;
-	unsigned long long int procd = 0;
 	char str[64];
 	snprintf(str, sizeof(str), "/proc/%ld/stat", pid);
-	printf("%s\n", str);
 
 	FILE* st_file = fopen(str, "r");
 	if (st_file == NULL)
 	{
 		printf("ERROR: Failed to open file %s\n", str);
-		return -1.0;
+		return 0;
 	}
-	return 100 * (st_data->cpu_total_d - procd);
+
+	char buf[4096];
+	fgets(buf, sizeof(buf), st_file);
+	char *p = strrchr(buf, ')');
+
+	if (!p)
+		return 0;
+	p += 2;
+
+	unsigned long long int utime = 0, stime = 0;
+	int field = 3;
+	char *save;
+	char *tok = strtok_r(p, " ", &save);
+	while (tok)
+	{
+		if (field == 14)
+			utime = strtoull(tok, NULL, 10);
+
+		if (field == 15)
+		{
+			stime = strtoull(tok, NULL, 10);
+			break;
+		}
+
+		tok = strtok_r(NULL, " ", &save);
+		field++;
+	}
+
+	fclose(st_file);
+
+	return utime + stime;
 }
 
-void sigint_func(int sig)
+void update_proc_array(DIR* dir, proc_data** pid_array, size_t* pid_array_size, size_t* pid_count)
 {
-	(void)sig; // silences warning
-	running = 0;
+	// processes
+	rewinddir(dir);
+	struct dirent *p_dir;
+	while ((p_dir = readdir(dir)) != NULL)
+	{
+		if (p_dir->d_type == DT_DIR)
+		{
+			char *end;
+			errno = 0;
+			long pid = strtol(p_dir->d_name, &end, 10);
+			
+			if (*end != '\0' || pid <= 0)
+			{
+				printf("ERROR: Sus process found %s\n", p_dir->d_name);
+				continue;
+			}
+			if (errno)
+			{
+				perror("ERROR: strtol");
+				continue;
+			}
+
+			int index = find_process(*pid_array, *pid_count, pid);
+			if (index == -1)
+			{
+				if (*pid_count == *pid_array_size)
+				{
+					size_t new_size = (*pid_array_size == 0) ? 16 : *pid_array_size * 2;
+					proc_data* new_arr = realloc(*pid_array, new_size * sizeof(*new_arr));
+					if (new_arr == NULL)
+					{
+						fprintf(stderr, "ERROR::PID_ARRAY_RESIZE_MALLOC_FAILED");
+						return; // cant quite do anything from here
+					}
+					*pid_array = new_arr;
+					(*pid_array_size) = new_size;
+					printf("RESIZED!!!!");
+				}
+
+				(*pid_array)[*pid_count].pid = pid;
+				(*pid_array)[*pid_count].proc_total = get_time_for_proc(pid);
+				(*pid_count)++;
+			}
+			else
+			{
+				// existing proc
+			}
+		}
+	}
 }
 
+int find_process(proc_data *array, size_t count, long pid)
+{
+	for (size_t i = 0; i < count; i++)
+	{
+		if (array[i].pid == pid)
+			return i;
+	}
 
+	return -1;
+}
+
+double get_usage_for_proc(unsigned long long int new_time, unsigned long long int prev_time, stat_data *st_data)
+{
+	// compute with prev time 
+	unsigned long long int proc_delta = new_time - prev_time;
+
+	return 100.0 * proc_delta / st_data->cpu_total_d;
+}
 
 int main(void)
 {
@@ -151,6 +259,10 @@ int main(void)
 
 	DIR* dir = opendir("/proc");
 
+	proc_data *pid_array = malloc(sizeof(proc_data) * 30);
+	size_t pid_array_size = 30;
+	size_t pid_count = 0; // valid processes
+
 	// loop and print delta
 	while(running)
 	{
@@ -158,40 +270,33 @@ int main(void)
 		double mem_usage = 0;
 		double swap_usage = 0;
 
+
+		update_proc_array(dir, &pid_array, &pid_array_size, &pid_count);
 		cpu_usage = get_cpu_usage(&st_data); // sleeps for 1
 		mem_usage = get_mem_usage();
 		swap_usage = get_swap_usage();
 
-		// processes
-		struct dirent *p_dir;
-		while ((p_dir = readdir(dir)) != NULL)
+		int p = 0;
+		while(p < pid_count)
 		{
-			if (p_dir->d_type == DT_DIR)
+			if (pid_array[p].pid != 0)
 			{
-				char *end;
-				long pid = strtol(p_dir->d_name, &end, 10);
-				
-				if (*end != '\0')
-				{
-					printf("ERROR: Sus process found %s\n", p_dir->d_name);
-					continue;
-				}
-				if (errno)
-				{
-					perror("ERROR: strtol");
-					continue;
-				}
-
-				get_usage_for_proccess(&st_data, pid);
+				unsigned long long int new_time = get_time_for_proc(pid_array[p].pid);
+				double us = get_usage_for_proc(new_time, pid_array[p].proc_total, &st_data);
+				pid_array[p].proc_total = new_time;
+				printf("%ld: %lf\n", pid_array[p].pid, us);
 			}
+			p++;
 		}
 
-		printf("Usage: %f\n", cpu_usage);
+		printf("CPU Usage: %f\n", cpu_usage);
 		printf("Mem Usage: %f\n", mem_usage);
 		printf("Swap Usage: %f\n", swap_usage);
 		fflush(stdout);
 	}
 
+	free(pid_array);
+	closedir(dir);
 	printf("bye\n");
 	return 0;
 }

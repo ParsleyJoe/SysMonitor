@@ -1,10 +1,12 @@
-CFLAGS = -g -Wall -Wextra -Wshadow -Wpedantic
+CFLAGS = -g -Wall -Wextra -Wshadow -Wpedantic -Wconversion
+SANFLAGS = -fsanitize=undefined
+TARGET = monitor
 
 monitor: main.o
-	cc -o monitor main.o
+	cc $(SANFLAGS) -o monitor main.o
 
 main.o: main.c
-	cc $(CFLAGS) -c main.c -o main.o
+	cc $(CFLAGS) $(SANFLAGS) -c main.c -o main.o
 
 clean:
-	rm main.o monitor
+	rm $(TARGET) main.o
