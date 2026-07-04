@@ -3,7 +3,7 @@ SANFLAGS = -fsanitize=undefined
 TARGET = monitor
 
 monitor: main.o proc.o ui.o
-	cc $(SANFLAGS) -o monitor main.o proc.o ui.o -lncurses
+	cc $(SANFLAGS) -o monitor main.o proc.o ui.o -lncurses -lpthread
 
 main.o: src/main.c
 	cc $(CFLAGS) $(SANFLAGS) -c src/main.c -o main.o

@@ -1,3 +1,6 @@
 *.o
 monitor
 template.jpg
+tmp.txt
+perf.data
+

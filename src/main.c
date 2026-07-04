@@ -5,22 +5,26 @@
 #include <string.h>
 
 #include <ncurses.h>
+#include <pthread.h>
 
 #include "../include/proc.h"
 #include "../include/ui.h"
 
 // global.? idk
 static volatile sig_atomic_t running = 1; 
-
+proc_data* shared_pid_array = NULL;
+int shared_pid_count = 0;
+pthread_mutex_t shared_data_mutex = PTHREAD_MUTEX_INITIALIZER;
+double sh_cpu_usage;
+	
 void sigint_func(int sig)
 {
 	(void)sig; // silences warning
 	running = 0;
 }
 
-int main(void)
+void *worker_thread(void* args)
 {
-
 	// Init data
 	stat_data st_data;
 	signal(SIGINT, sigint_func);
@@ -30,35 +34,11 @@ int main(void)
 	proc_data *pid_array = malloc(sizeof(proc_data) * 30);
 	size_t pid_array_size = 30;
 	size_t pid_count = 0; // valid processes
-	
-
-	// Init ncurses
-	initscr();
-	noecho();
-	cbreak();
-	nodelay(stdscr, TRUE);
-	keypad(stdscr, TRUE);
-	curs_set(1);
-
-	if (has_colors() == FALSE)
-	{
-		endwin();
-		fprintf(stderr, "Terminal doesn't support colors.\n");
-		return 1;
-	}
-
-	start_color();
-	init_pair(1, COLOR_BLACK, COLOR_BLUE); // fore & background colors.
-
-	attron(COLOR_PAIR(1));
-
-	// loop and print delta
 	while(running)
 	{
 		double cpu_usage = 0;
 		double mem_usage = 0;
 		double swap_usage = 0;
-
 
 		// changes the dynamic array elements, without modifying the elements themselves
 		update_proc_array(dir, &pid_array, &pid_array_size, &pid_count);
@@ -75,16 +55,79 @@ int main(void)
 				unsigned long long int new_time = get_time_for_proc(pid_array[p].pid);
 				double us = get_usage_for_proc(new_time, pid_array[p].proc_total, &st_data);
 				pid_array[p].proc_total = new_time;
-				//printf("%ld: %lf\n", pid_array[p].pid, us);
+				pid_array[p].usage = us;
 			}
 			p++;
 		}
 
+		pthread_mutex_lock(&shared_data_mutex);
+			if (shared_pid_array != NULL)
+			{
+				free(shared_pid_array);
+			}
+			shared_pid_array = malloc(sizeof(proc_data) * pid_count);
+			shared_pid_count = pid_count;
+			memcpy(shared_pid_array,
+			       pid_array,
+			       pid_count * sizeof(proc_data));
+		pthread_mutex_unlock(&shared_data_mutex);
+	}
+
+	closedir(dir);
+
+	return NULL;
+}
+
+int main(void)
+{
+
+	// Init ncurses
+	initscr();
+	noecho();
+	cbreak();
+	nodelay(stdscr, TRUE);
+	keypad(stdscr, TRUE);
+	curs_set(1);
+	if (has_colors() == FALSE)
+	{
+		endwin();
+		fprintf(stderr, "Terminal doesn't support colors.\n");
+		return 1;
+	}
+	start_color();
+	init_pair(1, COLOR_BLACK, COLOR_BLUE); // fore & background colors.
+	attron(COLOR_PAIR(1));
+
+	pthread_t worker;
+	pthread_create(&worker, NULL, worker_thread, NULL);
+	int top_proc = 0; // top visible process
+
+	// loop and print delta
+	while(running)
+	{
 		erase();
 
 		// Drawing
 		draw_title();
-		draw_usages(cpu_usage, mem_usage, swap_usage);
+		draw_usages(sh_cpu_usage, 0.0, 0.0);
+
+		int rows, cols;
+		getmaxyx(stdscr, rows, cols);
+		int start_y = getmaxy(stdscr) * 0.2;
+		int visible = rows - 2;
+
+		pthread_mutex_lock(&shared_data_mutex);
+		for (int i = 0; i < visible; i++)
+		{
+			int index = top_proc + i;
+			if (index >= shared_pid_count)
+				break;
+
+			proc_data *curr = &(shared_pid_array[index]);
+			mvprintw(start_y + (i + 1), 0,
+				"%ld %lf", curr->pid, curr->usage);
+		}
+		pthread_mutex_unlock(&shared_data_mutex);
 
 		refresh();
 
@@ -95,14 +138,23 @@ int main(void)
 		case 'Q':
 			running = false;
 			break;
+		case KEY_UP:
+			top_proc--;
+			if (top_proc < 0)
+				top_proc = 0;
+			break;
+		case KEY_DOWN:
+			top_proc++;
+			if (top_proc > shared_pid_count)
+				top_proc = shared_pid_count;
+			break;
 		}
 	}
 
 	attroff(COLOR_PAIR(1));
 
 	endwin();
-	free(pid_array);
-	closedir(dir);
+	free(shared_pid_array);
 	printf("bye\n");
 	return 0;
 }

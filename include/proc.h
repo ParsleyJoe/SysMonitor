@@ -9,9 +9,10 @@ typedef struct stat_data{
 } stat_data;
 
 typedef struct proc_data {
-	unsigned long long int proc_total;
 	long pid;
 	int seen;
+	unsigned long long int proc_total;
+	double usage;
 } proc_data;
 
 int find_process(proc_data *array, size_t count, long pid);

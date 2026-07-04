@@ -23,8 +23,6 @@ double get_cpu_usage(stat_data *st_data)
 	int usage;
 
 	FILE *f = fopen("/proc/stat", "r");
-	freopen("/proc/stat", "r", f);
-
 	// the tri-fecta
 	fseek(f, 0L, SEEK_SET);
 	fgets(s, 200, f);
@@ -44,7 +42,7 @@ double get_cpu_usage(stat_data *st_data)
 	unsigned long long int prevNonIdle = user + nice + system + irq + softirq + steal;
 	unsigned long long int prevTotal = prevIdle + prevNonIdle;
 
-	sleep(1);
+	usleep(500000);
 
 	// do it again
 	freopen("/proc/stat", "r", f);
@@ -73,7 +71,7 @@ double get_cpu_usage(stat_data *st_data)
 
 	st_data->cpu_total_d = totald;
 
-	if (totald == 0) { printf("Division BY ZERO");}
+	if (totald == 0) { fprintf(stderr, "Division BY ZERO::totald is zero");}
 	else usage = (double)(totald - idled) / totald * 100.0;
 
 	fclose(f);
@@ -131,9 +129,8 @@ unsigned long long int get_time_for_proc(long pid)
 	FILE* st_file = fopen(str, "r");
 	if (st_file == NULL)
 	{
-		if (errno == ENOENT || errno == ESRCH)
+		if (errno == ENOENT || errno == ESRCH) // failed to open file, because it exited
 		{
-			// Process exited between scan and open.
 			return 0;
 		}
     		perror(str);
@@ -221,7 +218,7 @@ void update_proc_array(DIR* dir, proc_data** pid_array, size_t* pid_array_size, 
 				}
 				*pid_array = tmp;
 				*pid_array_size = tmp_size;
-				printf("RESIZED!!!!");
+				// printf("RESIZED!!!!");
 			}
 		}
 	}
@@ -232,7 +229,7 @@ void update_proc_array(DIR* dir, proc_data** pid_array, size_t* pid_array_size, 
 		// already not seen
 		if ((*pid_array)[i].seen == 0)
 		{
-			printf("Removed Process: %ld", (*pid_array)[i].pid); 
+			// printf("Removed Process: %ld", (*pid_array)[i].pid); 
 			remove_process(*pid_array, pid_count, i);
 			continue;
 		}
@@ -256,5 +253,5 @@ double get_usage_for_proc(unsigned long long int new_time, unsigned long long in
 	// compute with prev time 
 	unsigned long long int proc_delta = new_time - prev_time;
 
-	return 100.0 * proc_delta / st_data->cpu_total_d;
+	return 100.0 * proc_delta * sysconf(_SC_NPROCESSORS_ONLN) / st_data->cpu_total_d;
 }
