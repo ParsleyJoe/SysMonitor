@@ -149,6 +149,7 @@ int main(void)
 				top_proc = shared_pid_count;
 			break;
 		}
+		napms(30);
 	}
 
 	attroff(COLOR_PAIR(1));

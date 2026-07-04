@@ -2,7 +2,6 @@
 
 Linux system monitor made in C. Calcutates data with files from /proc, calculations in reference to htop cpu usage calculation code.
 
-
 ## Building
 No dependencies besides C standard library.
 
@@ -12,3 +11,7 @@ cd SysMonitor
 make
 ./monitor
 ```
+
+## Usage
+Press Q to quit.
+Pressing CTRL+C also works fine, as it is handled gracefully
