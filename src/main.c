@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 
 #include <ncurses.h>
 #include <pthread.h>
@@ -55,7 +56,7 @@ void *worker_thread(void* args)
 				unsigned long long int new_time = get_time_for_proc(pid_array[p].pid);
 				double us = get_usage_for_proc(new_time, pid_array[p].proc_total, &st_data);
 				pid_array[p].proc_total = new_time;
-				pid_array[p].usage = us;
+				pid_array[p].usage = MIN(us, 100.0);
 			}
 			p++;
 		}
@@ -76,6 +77,20 @@ void *worker_thread(void* args)
 	closedir(dir);
 
 	return NULL;
+}
+
+static int cmp_proc(const void* arg1, const void* arg2)
+{    
+	// if (arg1 < arg2) return -1;
+	//    	if (arg1 > arg2) return 1;
+	// return 0;
+	
+	proc_data* p1 = (proc_data*)arg1;
+	proc_data* p2 = (proc_data*)arg2;
+
+        if (p1->usage < p2->usage) return 1;
+        if (p1->usage > p2->usage) return -1;
+        return 0;
 }
 
 int main(void)
@@ -117,6 +132,9 @@ int main(void)
 		int visible = rows - 2;
 
 		pthread_mutex_lock(&shared_data_mutex);
+
+		qsort(shared_pid_array, shared_pid_count, sizeof(proc_data), cmp_proc);
+
 		for (int i = 0; i < visible; i++)
 		{
 			int index = top_proc + i;
