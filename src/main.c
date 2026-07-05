@@ -17,6 +17,8 @@ proc_data* shared_pid_array = NULL;
 int shared_pid_count = 0;
 pthread_mutex_t shared_data_mutex = PTHREAD_MUTEX_INITIALIZER;
 double sh_cpu_usage;
+double sh_mem_usage;
+double sh_swap_usage;
 	
 void sigint_func(int sig)
 {
@@ -63,6 +65,9 @@ void *worker_thread(void* args)
 		}
 
 		pthread_mutex_lock(&shared_data_mutex);
+			sh_cpu_usage = cpu_usage;
+			sh_mem_usage = mem_usage;
+			sh_swap_usage = swap_usage;
 			if (shared_pid_array != NULL)
 			{
 				for (int i = 0; i < shared_pid_count; i++)
@@ -94,14 +99,10 @@ void *worker_thread(void* args)
 
 static int cmp_proc(const void* arg1, const void* arg2)
 {    
-	// if (arg1 < arg2) return -1;
-	//    	if (arg1 > arg2) return 1;
-	// return 0;
-	
 	proc_data* p1 = (proc_data*)arg1;
 	proc_data* p2 = (proc_data*)arg2;
 
-        if (p1->usage < p2->usage) return 1;
+        if (p1->usage < p2->usage) return 1; // arranges in descending order, default example from cppreference, arranges in ascending
         if (p1->usage > p2->usage) return -1;
         return 0;
 }
@@ -123,12 +124,14 @@ int main(void)
 		return 1;
 	}
 	start_color();
-	init_pair(1, COLOR_BLACK, COLOR_BLUE); // fore & background colors.
-	attron(COLOR_PAIR(1));
+	init_pair(1, COLOR_BLACK, COLOR_BLUE);
 
 	pthread_t worker;
 	pthread_create(&worker, NULL, worker_thread, NULL);
 	int top_proc = 0; // top visible process
+	double cpu_usage = 0;
+	double mem_usage = 0;
+	double swap_usage = 0;
 
 	// loop and print delta
 	while(running)
@@ -137,18 +140,27 @@ int main(void)
 
 		// Drawing
 		draw_title();
-		draw_usages(sh_cpu_usage, 0.0, 0.0);
 
 		int rows, cols;
 		getmaxyx(stdscr, rows, cols);
-		int start_y = getmaxy(stdscr) * 0.2;
 		int visible = rows - 2;
 
 		pthread_mutex_lock(&shared_data_mutex);
 
+		cpu_usage = sh_cpu_usage;
+		mem_usage = sh_mem_usage;
+		swap_usage = sh_swap_usage;
+
 		if (shared_pid_array != NULL)
 			qsort(shared_pid_array, shared_pid_count, sizeof(proc_data), cmp_proc);
 
+		int usage_x = getmaxx(stdscr) * 0.6;
+		
+		int start_y = getmaxy(stdscr) * 0.2;
+		attron(COLOR_PAIR(1));
+		mvprintw(start_y, 0, "PID\tName");
+		mvprintw(start_y, usage_x, "CPU%%");
+		attroff(COLOR_PAIR(1));
 		for (int i = 0; i < visible; i++)
 		{
 			int index = top_proc + i;
@@ -156,11 +168,15 @@ int main(void)
 				break;
 
 			proc_data *curr = &(shared_pid_array[index]);
-			mvprintw(start_y + (i + 1), 0,
-				"%ld %s %lf", curr->pid, curr->str, curr->usage);
+			int y = start_y + (i + 1);
+			mvprintw(y, 0,
+				"%ld\t%s\t", curr->pid, curr->str);
+			move(y, usage_x);
+			mvprintw(y, usage_x, "%lf\t", curr->usage);
 		}
 		pthread_mutex_unlock(&shared_data_mutex);
 
+		draw_usages(cpu_usage, mem_usage, swap_usage);
 		refresh();
 
 		int ch = getch();
@@ -183,8 +199,6 @@ int main(void)
 		}
 		napms(30);
 	}
-
-	attroff(COLOR_PAIR(1));
 
 	endwin();
 	free(shared_pid_array);
