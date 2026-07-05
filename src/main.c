@@ -57,6 +57,7 @@ void *worker_thread(void* args)
 				double us = get_usage_for_proc(new_time, pid_array[p].proc_total, &st_data);
 				pid_array[p].proc_total = new_time;
 				pid_array[p].usage = MIN(us, 100.0);
+				get_name_proc(pid_array[p].pid, &pid_array[p].str);
 			}
 			p++;
 		}
@@ -64,13 +65,25 @@ void *worker_thread(void* args)
 		pthread_mutex_lock(&shared_data_mutex);
 			if (shared_pid_array != NULL)
 			{
+				for (int i = 0; i < shared_pid_count; i++)
+				{
+					free(shared_pid_array[i].str);
+				}
 				free(shared_pid_array);
 			}
+
 			shared_pid_array = malloc(sizeof(proc_data) * pid_count);
 			shared_pid_count = pid_count;
 			memcpy(shared_pid_array,
 			       pid_array,
 			       pid_count * sizeof(proc_data));
+			for (int i = 0; i < pid_count; i++)
+			{
+				if (pid_array[i].str != NULL)
+					shared_pid_array[i].str = strdup(pid_array[i].str);
+				else
+					shared_pid_array[i].str = NULL;
+			}
 		pthread_mutex_unlock(&shared_data_mutex);
 	}
 
@@ -133,7 +146,8 @@ int main(void)
 
 		pthread_mutex_lock(&shared_data_mutex);
 
-		qsort(shared_pid_array, shared_pid_count, sizeof(proc_data), cmp_proc);
+		if (shared_pid_array != NULL)
+			qsort(shared_pid_array, shared_pid_count, sizeof(proc_data), cmp_proc);
 
 		for (int i = 0; i < visible; i++)
 		{
@@ -143,7 +157,7 @@ int main(void)
 
 			proc_data *curr = &(shared_pid_array[index]);
 			mvprintw(start_y + (i + 1), 0,
-				"%ld %lf", curr->pid, curr->usage);
+				"%ld %s %lf", curr->pid, curr->str, curr->usage);
 		}
 		pthread_mutex_unlock(&shared_data_mutex);
 

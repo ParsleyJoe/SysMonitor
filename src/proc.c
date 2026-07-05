@@ -137,10 +137,10 @@ unsigned long long int get_time_for_proc(long pid)
 		return 0;
 	}
 
-	char buf[4096];
-	fgets(buf, sizeof(buf), st_file);
-	char *p = strrchr(buf, ')');
+	char bf[4026];
+	fgets(bf, sizeof(bf), st_file);
 
+	char *p = strchr(bf, ')');
 	if (!p)
 		return 0;
 	p += 2;
@@ -167,6 +167,37 @@ unsigned long long int get_time_for_proc(long pid)
 	fclose(st_file);
 
 	return utime + stime;
+}
+
+void get_name_proc(long pid, char** str)
+{
+	char buf[64];
+	snprintf(buf, sizeof(buf), "/proc/%ld/stat", pid);
+	FILE* st_file = fopen(buf, "r");
+	if (st_file == NULL)
+	{
+		if (errno == ENOENT || errno == ESRCH) // failed to open file, because it exited
+		{
+			return;
+		}
+    		perror(buf);
+		return;
+	}
+
+
+	char bf[526];
+	fgets(bf, sizeof(bf), st_file);
+	char *start = strrchr(bf, '(');
+	char *end = strchr(bf, ')');
+	size_t len = end - start - 1;
+
+	if (*str != NULL)
+		free(*str);
+	*str = malloc(sizeof(char) * len + 1);
+	memcpy(*str, start + 1, len);
+	(*str)[len] = '\0';
+
+	fclose(st_file);
 }
 
 void update_proc_array(DIR* dir, proc_data** pid_array, size_t* pid_array_size, size_t* pid_count)
@@ -204,6 +235,7 @@ void update_proc_array(DIR* dir, proc_data** pid_array, size_t* pid_array_size, 
 				(*pid_array)[*pid_count].pid = pid;
 				(*pid_array)[*pid_count].seen = 1;
 				(*pid_array)[*pid_count].proc_total = get_time_for_proc(pid);
+				(*pid_array)[*pid_count].str = NULL;
 				(*pid_count)++;
 			}
 

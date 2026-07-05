@@ -1,5 +1,5 @@
 CFLAGS = -g -Wall -Wextra -Wshadow -Wpedantic -Wconversion
-SANFLAGS = -fsanitize=undefined
+SANFLAGS = -fsanitize=undefined -fsanitize=address
 TARGET = monitor
 
 monitor: main.o proc.o ui.o
