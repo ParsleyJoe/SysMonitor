@@ -3,7 +3,10 @@
 Linux system monitor made in C. Calcutates data with files from /proc, calculations in reference to htop cpu usage calculation code.
 
 ## Building
-No dependencies besides C standard library.
+
+Dependencies:
+    C standard library(glibc on arch)
+    ncurses
 
 ```
 git clone https://github.com/ParsleyJoe/SysMonitor.git
