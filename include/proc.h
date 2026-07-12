@@ -10,7 +10,7 @@
 #include <dirent.h>
 
 
-typedef struct stat_data{
+typedef struct stat_data {
 	unsigned long long int cpu_total_d;
 	unsigned long long int mem_total;
 } stat_data;

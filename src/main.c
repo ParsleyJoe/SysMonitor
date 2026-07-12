@@ -1,8 +1,10 @@
-/*  This file is part of SysMonitor.
+/* This file is part of SysMonitor.
  * SysMonitor is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, version 3 of the License.
  * SysMonitor is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
  * You should have received a copy of the GNU General Public License along with SysMonitor. If not, see <https://www.gnu.org/licenses/>. 
  */
+
+#include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
 #include <dirent.h>
@@ -153,6 +155,7 @@ int main(void)
 	pthread_create(&worker, NULL, worker_thread, NULL);
 
 	int top_proc = 0; // top visible process
+	int selected_proc = 0;
 	double cpu_usage = 0;
 	double mem_usage = 0;
 	double swap_usage = 0;
@@ -167,7 +170,7 @@ int main(void)
 
 		int rows, cols;
 		getmaxyx(stdscr, rows, cols);
-		int visible = rows - 2;
+		int visible_procs = rows - 2;
 
 		// ---------------------------------------------------------------------
 		// Lock Mutex get data, draw process data, we don't copy the process data
@@ -191,7 +194,7 @@ int main(void)
 		mvprintw(start_y, mem_x, "MEM%%");
 		attroff(COLOR_PAIR(1));
 
-		for (int i = 0; i < visible; i++)
+		for (int i = 0; i < visible_procs; i++)
 		{
 			int index = top_proc + i;
 			if (index >= shared_pid_count)
@@ -199,11 +202,18 @@ int main(void)
 
 			proc_data *curr = &(shared_pid_array[index]);
 			int y = start_y + (i + 1);
+			if (index == selected_proc)
+			{
+				attron(COLOR_PAIR(1));
+			}
 			mvprintw(y, 0,
 				"%ld\t%s\t", curr->pid, curr->str);
 			move(y, usage_x);
 			mvprintw(y, usage_x, "%.2lf", curr->cpu_usage);
 			mvprintw(y, mem_x, "%.2lf", curr->mem_usage);
+
+			if (index == selected_proc)
+				attroff(COLOR_PAIR(1));
 		}
 		pthread_mutex_unlock(&shared_data_mutex);
 		// Unlock Mutex
@@ -220,14 +230,22 @@ int main(void)
 			running = false;
 			break;
 		case KEY_UP:
-			top_proc--;
-			if (top_proc < 0)
-				top_proc = 0;
+			selected_proc--;
+			if (selected_proc < 0)
+				selected_proc = 0;
+			if (selected_proc < top_proc)
+				top_proc--;
 			break;
 		case KEY_DOWN:
-			top_proc++;
+			selected_proc++;
+			if ((selected_proc - top_proc + start_y) > (getmaxy(stdscr) - 2))
+			{
+				top_proc++;
+			}
 			if (top_proc > shared_pid_count)
 				top_proc = shared_pid_count;
+			if (selected_proc >= shared_pid_count)
+				selected_proc = shared_pid_count - 1;
 			break;
 		}
 		napms(30);
