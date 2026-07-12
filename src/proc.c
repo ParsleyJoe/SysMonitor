@@ -50,7 +50,7 @@ double get_cpu_usage(stat_data *st_data)
 	unsigned long long int prevNonIdle = user + nice + system + irq + softirq + steal;
 	unsigned long long int prevTotal = prevIdle + prevNonIdle;
 
-	usleep(500000);
+	sleep(1);
 
 	// do it again
 	freopen("/proc/stat", "r", f);
@@ -300,4 +300,13 @@ double get_usage_for_proc(unsigned long long int new_time, unsigned long long in
 	unsigned long long int proc_delta = new_time - prev_time;
 
 	return 100.0 * proc_delta * sysconf(_SC_NPROCESSORS_ONLN) / st_data->cpu_total_d;
+}
+
+void kill_proc(long pid)
+{
+	if (kill(pid, SIGTERM) == -1) 
+	{
+		perror("kill");
+		return;
+	}
 }

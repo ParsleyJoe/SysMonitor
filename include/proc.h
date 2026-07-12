@@ -34,4 +34,5 @@ void update_proc_array(DIR* dir, proc_data** pid_array, size_t* pid_array_size, 
 int find_process(proc_data *array, size_t count, long pid);
 double get_usage_for_proc(unsigned long long int new_time, unsigned long long int prev_time, stat_data *st_data);
 void get_name_proc(long pid, char** str);
+void kill_proc(long pid);
 #endif

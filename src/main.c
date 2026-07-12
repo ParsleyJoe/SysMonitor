@@ -219,7 +219,9 @@ int main(void)
 		// Unlock Mutex
 		// --------------------------------------
 
+		draw_controls(start_y);
 		draw_usages(cpu_usage, mem_usage, swap_usage);
+
 		refresh();
 
 		int ch = getch();
@@ -246,6 +248,13 @@ int main(void)
 				top_proc = shared_pid_count;
 			if (selected_proc >= shared_pid_count)
 				selected_proc = shared_pid_count - 1;
+			break;
+		case KEY_F(9):
+			{
+			pthread_mutex_lock(&shared_data_mutex);
+			kill_proc(shared_pid_array[selected_proc].pid);
+			pthread_mutex_unlock(&shared_data_mutex);
+			}
 			break;
 		}
 		napms(30);

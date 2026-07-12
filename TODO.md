@@ -4,4 +4,4 @@
       could be because of the simple CPU time calcutation(uses only the first line of /proc/stat)
 
 # To implement
-    - Process Selection, killing selected process
+    - Can kill processes now, but list goes too fast, having a selected process followed is probably best option
