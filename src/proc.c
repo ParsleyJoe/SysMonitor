@@ -78,7 +78,7 @@ double get_cpu_usage(stat_data *st_data)
 	return usage;
 }
 
-double get_mem_usage()
+double get_mem_usage(stat_data* st_data)
 {
 	unsigned long long int mem_total = 0;
 	unsigned long long int mem_free = 0;
@@ -98,6 +98,7 @@ double get_mem_usage()
 	sscanf(s3, "MemAvailable: %llu", &mem_avail);
 
 	unsigned long long int mem_used = mem_total - mem_avail;
+	st_data->mem_total = mem_total;
 	usage = ((double)mem_used / mem_total) * 100.0;
 	fclose(f);
 	return usage;
@@ -121,7 +122,9 @@ double get_swap_usage()
 	return usage;
 }
 
-unsigned long long int get_time_for_proc(long pid)
+
+// Returns cpu_time
+unsigned long long int get_proc_data(long pid, unsigned long long int* rss)
 {
 	char str[64];
 	snprintf(str, sizeof(str), "/proc/%ld/stat", pid);
@@ -157,7 +160,10 @@ unsigned long long int get_time_for_proc(long pid)
 		if (field == 15)
 		{
 			stime = strtoull(tok, NULL, 10);
-			break;
+		}
+		if (field == 24)
+		{
+			*rss = strtoull(tok, NULL, 10);
 		}
 
 		tok = strtok_r(NULL, " ", &save);
@@ -234,7 +240,7 @@ void update_proc_array(DIR* dir, proc_data** pid_array, size_t* pid_array_size, 
 				// doesnt exist
 				(*pid_array)[*pid_count].pid = pid;
 				(*pid_array)[*pid_count].seen = 1;
-				(*pid_array)[*pid_count].proc_total = get_time_for_proc(pid);
+				(*pid_array)[*pid_count].proc_total = 0;
 				(*pid_array)[*pid_count].str = NULL;
 				(*pid_count)++;
 			}
