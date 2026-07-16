@@ -1,6 +1,9 @@
 # Sys Monitor
-
 Linux system monitor made in C. Calcutates data with files from /proc, calculations in reference to htop cpu usage calculation code.
+
+https://github.com/user-attachments/assets/c4752a8d-d39a-4e25-892d-f6baae9d8126
+
+### Note: The transparency is from the terminal(kitty) this program will not make your terminal transparent
 
 ## Building
 
