@@ -15,4 +15,4 @@ ui.o: src/ui.c
 	cc $(CLFAGS) $(SANFLAGS) -c src/ui.c -o ui.o
 
 clean:
-	rm $(TARGET) main.o proc.o
+	rm $(TARGET) main.o proc.o ui.o

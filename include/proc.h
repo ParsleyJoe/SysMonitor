@@ -24,6 +24,11 @@ typedef struct proc_data {
 	char* str;
 } proc_data;
 
+typedef enum proc_column{
+	CPU_COL = 0, MEM_COL,
+	PROC_COLUMN_COUNT
+} proc_column;
+
 int find_process(proc_data *array, size_t count, long pid);
 void remove_process(proc_data *array, size_t *count, size_t index);
 double get_cpu_usage(stat_data *st_data);

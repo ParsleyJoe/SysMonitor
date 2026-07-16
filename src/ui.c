@@ -62,12 +62,13 @@ void draw_usage(double usage, int y, int x)
 
 void draw_controls(int y)
 {
-	int x = getmaxx(stdscr) - strlen("Scrolling: arrows"); // TODO: Add the longest string here
+	int x = getmaxx(stdscr) - strlen("Hor.arrows: SortChange"); // TODO: Add the longest string here
 
 	attron(COLOR_PAIR(1));
 	mvprintw(y, x, "Controls");
 	mvprintw(++y, x, "Q: quit");
 	mvprintw(++y, x, "F9: Kill");
-	mvprintw(++y, x, "Scrolling: arrows");
+	mvprintw(++y, x, "Vert.arrows: Scroll");
+	mvprintw(++y, x, "Hor.arrows: SortChange");
 	attroff(COLOR_PAIR(1));
 }

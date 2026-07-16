@@ -69,8 +69,6 @@ void *worker_thread(void* args)
 				double us = get_usage_for_proc(new_time, pid_array[p].proc_total, &st_data);
 				pid_array[p].proc_total = new_time;
 				pid_array[p].cpu_usage = MIN(us, 100.0);
-				if (us <= 1.0 && us != 0.0)
-					fprintf(stderr, "FOUND SOME: %lf", us);
 
 				get_name_proc(pid_array[p].pid, &pid_array[p].str);
 			}
@@ -121,7 +119,7 @@ void *worker_thread(void* args)
 	return NULL;
 }
 
-static int cmp_proc(const void* arg1, const void* arg2)
+static int cpu_cmp_proc(const void* arg1, const void* arg2)
 {
 	proc_data* p1 = (proc_data*)arg1;
 	proc_data* p2 = (proc_data*)arg2;
@@ -129,6 +127,16 @@ static int cmp_proc(const void* arg1, const void* arg2)
         if (p1->cpu_usage < p2->cpu_usage) return 1; // arranges in descending order, default example from cppreference, arranges in ascending
         if (p1->cpu_usage > p2->cpu_usage) return -1;
         return 0;
+}
+
+static int mem_cmp_proc(const void* arg1, const void* arg2)
+{
+	proc_data* p1 = (proc_data*)arg1;
+	proc_data* p2 = (proc_data*)arg2;
+
+	if (p1->mem_usage < p2->mem_usage) return 1;
+	if (p1->mem_usage > p2->mem_usage) return -1;
+	return 0;
 }
 
 int main(void)
@@ -159,6 +167,7 @@ int main(void)
 	double cpu_usage = 0;
 	double mem_usage = 0;
 	double swap_usage = 0;
+	proc_column curr_sort_column = CPU_COL;
 
 	// loop and print delta
 	while(running)
@@ -181,18 +190,34 @@ int main(void)
 		swap_usage = sh_swap_usage;
 
 
-		if (shared_pid_array != NULL)
-			qsort(shared_pid_array, shared_pid_count, sizeof(proc_data), cmp_proc);
-
-		int usage_x = getmaxx(stdscr) * 0.6;
+		int cpu_x = getmaxx(stdscr) * 0.6;
 		int mem_x = getmaxx(stdscr) * 0.7;
 		
 		int start_y = getmaxy(stdscr) * 0.2;
 		attron(COLOR_PAIR(1));
 		mvprintw(start_y, 0, "PID\tName");
-		mvprintw(start_y, usage_x, "CPU%%<-");
+		mvprintw(start_y, cpu_x, "CPU%%");
 		mvprintw(start_y, mem_x, "MEM%%");
 		attroff(COLOR_PAIR(1));
+
+		int n = strlen("CPU%%");
+		if (shared_pid_array != NULL)
+		{
+			switch (curr_sort_column)
+			{
+			case CPU_COL:
+				qsort(shared_pid_array, shared_pid_count, sizeof(proc_data), cpu_cmp_proc);
+				mvprintw(start_y, cpu_x + n, "<-");
+				break;
+			case MEM_COL:
+				qsort(shared_pid_array, shared_pid_count, sizeof(proc_data), mem_cmp_proc);
+				mvprintw(start_y, mem_x + n, "<-");
+				break;
+			default:
+				fprintf(stderr, "curr_sort_column is invalid: %d", curr_sort_column);
+				break;
+			}
+		}
 
 		for (int i = 0; i < visible_procs; i++)
 		{
@@ -208,8 +233,8 @@ int main(void)
 			}
 			mvprintw(y, 0,
 				"%ld\t%s\t", curr->pid, curr->str);
-			move(y, usage_x);
-			mvprintw(y, usage_x, "%.2lf", curr->cpu_usage);
+			move(y, cpu_x);
+			mvprintw(y, cpu_x, "%.2lf", curr->cpu_usage);
 			mvprintw(y, mem_x, "%.2lf", curr->mem_usage);
 
 			if (index == selected_proc)
@@ -249,10 +274,22 @@ int main(void)
 			if (selected_proc >= shared_pid_count)
 				selected_proc = shared_pid_count - 1;
 			break;
+		case KEY_LEFT:
+		{
+			if (curr_sort_column > CPU_COL)
+				curr_sort_column--;
+		}
+		break;
+		case KEY_RIGHT:
+		{
+			if (curr_sort_column < PROC_COLUMN_COUNT - 1)
+				curr_sort_column++;
+		}
+		break;
 		case KEY_F(9):
 			{
 			pthread_mutex_lock(&shared_data_mutex);
-			kill_proc(shared_pid_array[selected_proc].pid);
+				kill_proc(shared_pid_array[selected_proc].pid);
 			pthread_mutex_unlock(&shared_data_mutex);
 			}
 			break;
