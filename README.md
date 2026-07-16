@@ -16,5 +16,7 @@ make
 ```
 
 ## Usage
-Press Q to quit.
-Pressing CTRL+C also works fine, as it is handled gracefully
+- Press Q to quit.
+- Pressing CTRL+C also works fine, as it is handled gracefully
+- Up and Down arrows to scroll processes
+- Left and right arrow to change selected column (processes are sorted in descending order based on selected column)
